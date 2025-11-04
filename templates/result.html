@@ -1,0 +1,44 @@
+
+{% extends "base.html" %}
+{% block content %}
+<div class="grid">
+  <div class="main card">
+    <div class="stat hero success">
+      <div class="big">{{ correct }}</div>
+      <div>Правильных ответов</div>
+    </div>
+    <div class="stat-cards">
+      <div class="mini card sky">
+        <div class="mini-big">{{ percent }}%</div>
+        <div>Правильных ответов</div>
+      </div>
+      <div class="mini card violet">
+        <div class="mini-big">{{ "%.0f"|format(avg_time) }} сек</div>
+        <div>Среднее время ответа</div>
+      </div>
+    </div>
+    <div class="actions">
+      <a class="btn btn-primary" href="{{ url_for('trainer') }}">Ещё раз</a>
+      <a class="btn" href="{{ url_for('logout') }}">Выйти</a>
+    </div>
+  </div>
+  <aside class="sidebar card">
+    <div class="side-row">
+      <div class="side-title">Очки</div>
+      <div class="side-value">{{ points }}</div>
+    </div>
+    <div class="side-row">
+      <div class="side-title">Верно</div>
+      <div class="side-value">{{ correct }}</div>
+    </div>
+    <div class="side-row">
+      <div class="side-title">Неверно</div>
+      <div class="side-value">{{ wrong }}</div>
+    </div>
+    <div class="side-row">
+      <div class="side-title">Рекорд</div>
+      <div class="side-value">{{ record }}</div>
+    </div>
+  </aside>
+</div>
+{% endblock %}
