@@ -1,0 +1,30 @@
+
+{% extends "base.html" %}
+{% block content %}
+<div class="grid">
+  <div class="main card">
+    <div class="problem" id="problem">5 × 3 =</div>
+    <input id="answer" class="answer-input" type="number" placeholder="Ваш ответ" autofocus>
+    <div class="timer" id="timer">10</div>
+  </div>
+  <aside class="sidebar card">
+    <div class="side-row">
+      <div class="side-title">Очки</div>
+      <div class="side-value" id="points">0</div>
+    </div>
+    <div class="side-row">
+      <div class="side-title">Верно</div>
+      <div class="side-value" id="correct">0</div>
+    </div>
+    <div class="side-row">
+      <div class="side-title">Неверно</div>
+      <div class="side-value" id="wrong">0</div>
+    </div>
+    <div class="side-row">
+      <div class="side-title">Рекорд</div>
+      <div class="side-value" id="record">{{ record }}</div>
+    </div>
+  </aside>
+</div>
+<script defer src="{{ url_for('static', filename='js/trainer.js') }}"></script>
+{% endblock %}
