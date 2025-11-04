@@ -1,0 +1,17 @@
+
+{% extends "base.html" %}
+{% block content %}
+<div class="center-modal">
+  <div class="card modal-card">
+    <h2 class="title">Вход в систему обучения</h2>
+    <form method="post" class="form">
+      <input type="text" name="email" placeholder="Почта или телефон" class="input">
+      <input type="password" name="password" placeholder="Пароль" class="input">
+      {% if error %}<div class="error">{{ error }}</div>{% endif %}
+      <div class="forgot">Забыли пароль?</div>
+      <button class="btn btn-primary" type="submit">Войти</button>
+      <a class="btn btn-secondary" href="#" onclick="alert('Для примера регистрация объединена с логином — просто введите данные и нажмите Войти.'); return false;">Вход для учителя</a>
+    </form>
+  </div>
+</div>
+{% endblock %}
