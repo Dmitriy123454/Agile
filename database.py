@@ -146,6 +146,39 @@ class DatabaseManager:
             'last_attempts': last_attempts,
         }
 
+    def get_course_students(self, course_id):
+        """Список учеников, привязанных к курсу"""
+        with self.get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    SELECT u.id, u.email, u.first_name, u.last_name
+                    FROM assigned_courses ac
+                    JOIN users u ON ac.student_id = u.id
+                    WHERE ac.course_id = %s
+                    ORDER BY u.last_name NULLS LAST, u.first_name NULLS LAST, u.email
+                """, (course_id,))
+                rows = cur.fetchall()
+
+        students = []
+        for row in rows:
+            students.append({
+                "id": row[0],
+                "email": row[1],
+                "first_name": row[2] or "",
+                "last_name": row[3] or "",
+            })
+        return students
+
+    def remove_student_from_course(self, student_id, course_id):
+        """Удалить ученика с курса (запись в assigned_courses)"""
+        with self.get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    DELETE FROM assigned_courses
+                    WHERE student_id = %s AND course_id = %s
+                """, (student_id, course_id))
+
+
 
 # Глобальный экземпляр
 db = DatabaseManager()

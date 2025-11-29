@@ -2,7 +2,8 @@ from flask import Flask, render_template, request, redirect, url_for, session, j
 from datetime import timedelta
 import random
 import hashlib
-from database import db  
+from database import db
+from functools import wraps
 
 app = Flask(__name__)
 app.secret_key = "dev-secret-change-me"
@@ -10,11 +11,19 @@ app.permanent_session_lifetime = timedelta(days=7)
 
 # -------------------- Helpers --------------------
 def login_required(fn):
-    from functools import wraps
     @wraps(fn)
     def wrapper(*args, **kwargs):
         if not session.get("user"):
             return redirect(url_for("login"))
+        return fn(*args, **kwargs)
+    return wrapper
+
+def teacher_required(fn):
+    @wraps(fn)
+    def wrapper(*args, **kwargs):
+        user = session.get("user")
+        if not user or user.get("role") != "teacher":
+            return redirect(url_for("trainer"))
         return fn(*args, **kwargs)
     return wrapper
 
@@ -49,7 +58,8 @@ def login():
                 # Устанавливаем сессию
                 session["user"] = {
                     "id": user['id'],  # Добавляем ID из БД
-                    "email": email
+                    "email": email,
+                    "role": user.get('role', 'student')
                 }
                 
                 # Загружаем рекорд из БД вместо сессии
@@ -130,6 +140,32 @@ def result():
         percent=percent,
         record=session.get("record", 0),
     )
+@app.route("/teacher/courses/<int:course_id>")
+@login_required
+@teacher_required
+def teacher_course_students(course_id):
+    students = db.get_course_students(course_id)
+    return render_template(
+        "teacher_course.html",
+        course_id=course_id,
+        students=students
+    )
+
+@app.route("/api/courses/<int:course_id>/students/<int:student_id>/delete", methods=["POST"])
+@login_required
+@teacher_required
+def api_delete_student(course_id, student_id):
+    try:
+        db.remove_student_from_course(student_id, course_id)
+        # берём обновлённый список учеников
+        students = db.get_course_students(course_id)
+        return jsonify({"ok": True, "students": students})
+    except Exception as e:
+        print(f"Delete student error: {e}")
+        return jsonify({"ok": False, "error": "Не удалось удалить ученика"}), 500
+
+
+
 
 # API endpoint for generating a new multiplication task
 @app.route("/api/task")

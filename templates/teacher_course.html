@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="card">
+  <h2 class="title">Ученики курса #{{ course_id }}</h2>
+
+  <table class="table" id="students-table">
+    <thead>
+      <tr>
+        <th>#</th>
+        <th>ФИО</th>
+        <th>Email</th>
+        <th>Действия</th>
+      </tr>
+    </thead>
+    <tbody>
+    {% for s in students %}
+      <tr data-student-id="{{ s.id }}">
+        <td>{{ loop.index }}</td>
+        <td>{{ s.last_name }} {{ s.first_name }}</td>
+        <td>{{ s.email }}</td>
+        <td>
+          <button class="btn btn-danger btn-delete" 
+                  data-student-id="{{ s.id }}">
+            Удалить
+          </button>
+        </td>
+      </tr>
+    {% else %}
+      <tr>
+        <td colspan="4">Пока нет учеников на этом курсе.</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<script>
+  // передаём course_id в JS
+  const COURSE_ID = {{ course_id }};
+</script>
+<script src="{{ url_for('static', filename='js/teacher.js') }}"></script>
+{% endblock %}
