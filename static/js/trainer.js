@@ -1,4 +1,3 @@
-
 (function(){
   const timeLimit = 10; // seconds (for debugging per the task)
   const problemEl = document.getElementById('problem');
@@ -20,21 +19,26 @@
     const r = await fetch('/api/task');
     const t = await r.json();
     current = t;
-    problemEl.textContent = `${t.a} × ${t.b} =`;
-    answerEl.value = '';
-    answerEl.focus();
+    if (problemEl) {
+      problemEl.textContent = `${t.a} × ${t.b} =`;
+    }
+    if (answerEl) {
+      answerEl.value = '';
+      answerEl.disabled = false;
+      answerEl.focus();
+    }
     startTime = Date.now();
   }
 
   function updateSidebar(){
-    pointsEl.textContent = points;
-    correctEl.textContent = correct;
-    wrongEl.textContent = wrong;
+    if (pointsEl) pointsEl.textContent = points;
+    if (correctEl) correctEl.textContent = correct;
+    if (wrongEl) wrongEl.textContent = wrong;
   }
 
   function tick(){
     timer--;
-    timerEl.textContent = timer;
+    if (timerEl) timerEl.textContent = timer;
     if(timer <= 0){
       finish();
     } else {
@@ -43,9 +47,12 @@
   }
 
   function finish(){
-    answerEl.disabled = true;
-    const avg = answerTimes.length ? (answerTimes.reduce((a,b)=>a+b,0)/answerTimes.length) : 0;
-    // POST results, then navigate to the rendered result page
+    if (answerEl) answerEl.disabled = true;
+    const avg = answerTimes.length
+      ? (answerTimes.reduce((a,b)=>a+b,0)/answerTimes.length)
+      : 0;
+
+    // POST results, затем сервер вернёт готовую HTML-страницу результата
     fetch('/result', {
       method:'POST',
       headers:{'Content-Type':'application/json'},
@@ -57,26 +64,31 @@
     });
   }
 
-  answerEl.addEventListener('keydown', (e)=>{
-    if(e.key === 'Enter'){
-      const val = Number(answerEl.value);
-      const elapsed = (Date.now() - startTime)/1000;
-      if(val === current.answer){
-        correct++;
-        points++;
-        answerTimes.push(elapsed);
-        problemEl.classList.add('blink-green');
-      }else{
-        wrong++;
-        problemEl.classList.add('blink-red');
+  if (answerEl) {
+    answerEl.addEventListener('keydown', (e)=>{
+      if(e.key === 'Enter'){
+        const val = Number(answerEl.value);
+        const elapsed = (Date.now() - startTime)/1000;
+
+        if(val === (current ? current.answer : NaN)){
+          correct++;
+          points++;
+          answerTimes.push(elapsed);
+          if (problemEl) problemEl.classList.add('blink-green');
+        } else {
+          wrong++;
+          if (problemEl) problemEl.classList.add('blink-red');
+        }
+
+        updateSidebar();
+
+        setTimeout(()=>{
+          if (problemEl) problemEl.classList.remove('blink-green', 'blink-red');
+          newTask();
+        }, 120);
       }
-      updateSidebar();
-      setTimeout(()=>{
-        problemEl.classList.remove('blink-green','blink-red');
-        newTask();
-      }, 120);
-    }
-  });
+    });
+  }
 
   // Visual feedback
   const style = document.createElement('style');
@@ -86,8 +98,62 @@
   `;
   document.head.appendChild(style);
 
+  // --- График 10 последних тренировок ---
+  function renderProgressChart() {
+    const stats = window.USER_STATS || {};
+    const attempts = stats.last_attempts || [];
+    if (!attempts.length) return;
+
+    const canvas = document.getElementById('progressChart');
+    if (!canvas || typeof Chart === 'undefined') return;
+
+    const labels = attempts.map((a, idx) => a.label || `#${idx + 1}`);
+    const dataPoints = attempts.map(a => a.points);
+
+    new Chart(canvas.getContext('2d'), {
+      type: 'bar',
+      data: {
+        labels: labels,
+        datasets: [{
+          label: 'Очки за тренировку',
+          data: dataPoints,
+          borderWidth: 1
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        scales: {
+          y: {
+            beginAtZero: true,
+            ticks: { precision: 0 },
+            title: { display: true, text: 'Очки' }
+          },
+          x: {
+            title: { display: true, text: 'Последние попытки' }
+          }
+        },
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            callbacks: {
+              label: function(ctx) {
+                const i = ctx.dataIndex;
+                const a = attempts[i];
+                return `Очки: ${a.points}, верно: ${a.correct}, ошибок: ${a.wrong}, ${a.percent}%`;
+              }
+            }
+          }
+        }
+      }
+    });
+  }
+
   // boot
-  timerEl.textContent = timer;
-  newTask();
-  setTimeout(tick, 1000);
+  if (timerEl) timerEl.textContent = timer;
+  if (problemEl && answerEl) {
+    newTask();
+    setTimeout(tick, 1000);
+  }
+  renderProgressChart();
 })();
