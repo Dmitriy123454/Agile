@@ -49,28 +49,29 @@ class DatabaseManager:
                     }
                 return None
 
-    def save_exercise_result(self, user_id, exercise_data):
-        """Сохранение результатов упражнения (одной тренировки)"""
-        correct = int(exercise_data.get('correct', 0))
-        wrong = int(exercise_data.get('wrong', 0))
-        points = int(exercise_data.get('points', correct))
-        avg_time = float(exercise_data.get('avg_time', 0.0))
-        exercise_type = exercise_data.get('exercise_type', 'multiplication_basic')
-
+    def save_exercise_result(self, user_id: int, payload: dict):
+        """
+        payload = {
+            correct: int,
+            wrong: int,
+            points: int,       # -> total_points
+            avg_time: float,   # -> average_time
+            exercise_type: str
+        }
+        """
         with self.get_connection() as conn:
             with conn.cursor() as cur:
                 cur.execute("""
-                    INSERT INTO exercise_results 
-                    (user_id, exercise_type, correct_count, wrong_count, total_points, average_time, best_score)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s)
+                    INSERT INTO exercise_results
+                        (user_id, exercise_type, correct_count, wrong_count, total_points, average_time, completed_at)
+                    VALUES (%s, %s, %s, %s, %s, %s, NOW())
                 """, (
                     user_id,
-                    exercise_type,
-                    correct,
-                    wrong,
-                    points,
-                    avg_time,
-                    points,  # результат этой попытки как best_score именно для неё
+                    payload.get("exercise_type", "multiplication_basic"),
+                    int(payload.get("correct", 0)),
+                    int(payload.get("wrong", 0)),
+                    int(payload.get("points", 0)),         # <-- total_points
+                    float(payload.get("avg_time", 0.0)),   # <-- average_time
                 ))
 
     def get_user_best_score(self, user_id, exercise_type='multiplication_basic'):
@@ -87,12 +88,10 @@ class DatabaseManager:
 
     def get_user_stats(self, user_id, exercise_type='multiplication_basic'):
         """
-        Получение статистики пользователя + данные для графика.
-        last_attempts — 10 последних тренировок (для графика).
+        Получение общей статистики (и последние 10 попыток — будет удобно, если понадобятся).
         """
         with self.get_connection() as conn:
             with conn.cursor() as cur:
-                # Агрегированная статистика (на будущее, вдруг пригодится)
                 cur.execute("""
                     SELECT 
                         COUNT(*) AS total_sessions,
@@ -108,7 +107,6 @@ class DatabaseManager:
                 total_wrong = row[2] or 0
                 overall_best = row[3] or 0
 
-                # 10 последних тренировок
                 cur.execute("""
                     SELECT 
                         completed_at,
@@ -123,7 +121,6 @@ class DatabaseManager:
                 """, (user_id, exercise_type))
                 rows = cur.fetchall()
 
-        # Для графика слева → самая старая попытка
         rows = list(reversed(rows))
         last_attempts = []
         for completed_at, correct, wrong, points, avg_time in rows:
@@ -146,28 +143,24 @@ class DatabaseManager:
             'last_attempts': last_attempts,
         }
 
-    def get_course_students(self, course_id):
-        """Список учеников, привязанных к курсу"""
+    def get_course_students(self, course_id: int):
+        """Возвращает список студентов, прикрепленных к курсу."""
         with self.get_connection() as conn:
             with conn.cursor() as cur:
                 cur.execute("""
-                    SELECT u.id, u.email, u.first_name, u.last_name
+                    SELECT 
+                        u.id,
+                        u.email,
+                        COALESCE(u.first_name, '') AS first_name,
+                        COALESCE(u.last_name, '')  AS last_name,
+                        ac.assigned_at
                     FROM assigned_courses ac
-                    JOIN users u ON ac.student_id = u.id
+                    JOIN users u ON u.id = ac.student_id
                     WHERE ac.course_id = %s
-                    ORDER BY u.last_name NULLS LAST, u.first_name NULLS LAST, u.email
+                    ORDER BY u.last_name NULLS LAST, u.first_name NULLS LAST, u.email;
                 """, (course_id,))
-                rows = cur.fetchall()
-
-        students = []
-        for row in rows:
-            students.append({
-                "id": row[0],
-                "email": row[1],
-                "first_name": row[2] or "",
-                "last_name": row[3] or "",
-            })
-        return students
+                cols = [desc[0] for desc in cur.description]
+                return [dict(zip(cols, row)) for row in cur.fetchall()]
 
     def remove_student_from_course(self, student_id, course_id):
         """Удалить ученика с курса (запись в assigned_courses)"""
@@ -178,6 +171,87 @@ class DatabaseManager:
                     WHERE student_id = %s AND course_id = %s
                 """, (student_id, course_id))
 
+    def get_course_students_stats(self, course_id: int, query: str | None = None,
+                                  date_from: str | None = None, date_to: str | None = None,
+                                  sort: str | None = None):
+        """
+        Агрегированная статистика учеников курса с поиском/датами/сортировкой.
+        Даты фильтруем по exercise_results.completed_at.
+        """
+        with self.get_connection() as conn:
+            with conn.cursor() as cur:
+                params = [course_id]
+                date_sql = []
+                if date_from:
+                    date_sql.append("er.completed_at >= %s")  # <-- fixed
+                    params.append(date_from)
+                if date_to:
+                    date_sql.append("er.completed_at < %s")   # <-- fixed
+                    params.append(date_to)
+
+                search_sql = ""
+                if query:
+                    params.extend([f"%{query}%", f"%{query}%"])
+                    search_sql = "AND ((COALESCE(u.first_name,'') || ' ' || COALESCE(u.last_name,'')) ILIKE %s OR u.email ILIKE %s)"
+
+                sort_map = {
+                    "percent_desc": "percent_correct DESC NULLS LAST",
+                    "percent_asc":  "percent_correct ASC NULLS LAST",
+                    "avg_time_desc":"avg_time DESC NULLS LAST",
+                    "avg_time_asc": "avg_time ASC NULLS LAST",
+                    "attempts_desc":"attempts DESC, percent_correct DESC",
+                    "attempts_asc": "attempts ASC, percent_correct DESC",
+                }
+                order_by = sort_map.get(sort or "percent_desc", "percent_correct DESC NULLS LAST")
+
+                cur.execute(f"""
+                    SELECT
+                        u.id,
+                        u.email,
+                        COALESCE(u.first_name,'') AS first_name,
+                        COALESCE(u.last_name,'')  AS last_name,
+                        COUNT(er.id)                              AS attempts,
+                        COALESCE(SUM(er.correct_count),0)         AS total_correct,
+                        COALESCE(SUM(er.wrong_count),0)           AS total_wrong,
+                        CASE
+                          WHEN COALESCE(SUM(er.correct_count)+SUM(er.wrong_count),0) > 0
+                          THEN ROUND( (SUM(er.correct_count)::decimal * 100.0) /
+                                     (SUM(er.correct_count)+SUM(er.wrong_count)), 2)
+                          ELSE 0
+                        END AS percent_correct,
+                        ROUND(AVG(NULLIF(er.average_time,0))::numeric, 2) AS avg_time
+                    FROM assigned_courses ac
+                    JOIN users u ON u.id = ac.student_id
+                    LEFT JOIN exercise_results er
+                      ON er.user_id = u.id
+                     {('AND ' + ' AND '.join(date_sql)) if date_sql else ''}
+                    WHERE ac.course_id = %s
+                    {search_sql}
+                    GROUP BY u.id, u.email, u.first_name, u.last_name
+                    ORDER BY {order_by};
+                """, params)
+
+                cols = [d[0] for d in cur.description]
+                return [dict(zip(cols, row)) for row in cur.fetchall()]
+
+    def get_last_results(self, user_id: int, limit: int = 10):
+        """Последние попытки для графиков в профиле ученика."""
+        with self.get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    SELECT
+                        completed_at AS created_at,          -- <-- fixed alias
+                        COALESCE(total_points, 0)  AS points,  -- <-- fixed alias
+                        COALESCE(correct_count, 0) AS correct,
+                        COALESCE(wrong_count, 0)   AS wrong,
+                        COALESCE(average_time, 0)  AS avg_time
+                    FROM exercise_results
+                    WHERE user_id = %s
+                    ORDER BY completed_at DESC
+                    LIMIT %s
+                """, (user_id, limit))
+                cols = [d[0] for d in cur.description]
+                return [dict(zip(cols, r)) for r in cur.fetchall()]
 
 
 # Глобальный экземпляр

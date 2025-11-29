@@ -61,3 +61,39 @@ a{color:inherit;text-decoration:none}
   .grid{grid-template-columns:1fr}
   .problem{font-size:72px}
 }
+
+/* ---- Profile page ---- */
+.profile-header{display:flex;gap:16px;align-items:center;margin-bottom:12px}
+.profile-avatar{width:64px;height:64px;border-radius:50%;background:#eef2ff;display:flex;align-items:center;justify-content:center;font-size:28px}
+.profile-info{display:flex;flex-direction:column;gap:6px}
+.profile-title{font-weight:700;font-size:22px}
+.profile-meta{display:flex;gap:8px;flex-wrap:wrap}
+.profile-chip{background:#f1f5f9;border:1px solid #e5e7eb;border-radius:999px;padding:6px 10px;font-size:13px;color:#334155}
+
+.profile-stats{display:grid;grid-template-columns:repeat(3,minmax(160px,1fr));gap:16px;margin:14px 0 6px}
+.stat-card{background:#f8fafc;border:1px solid #e5e7eb;border-radius:12px;padding:14px}
+.stat-label{color:#64748b;font-size:12px;margin-bottom:4px}
+.stat-value{font-weight:700;font-size:20px}
+
+.profile-actions{display:flex;flex-wrap:wrap;gap:10px;margin:14px 0 12px}
+.btn-danger{background:#fee2e2}
+
+.section-title{margin:12px 0 8px}
+.table-card{border:1px solid #e5e7eb;border-radius:12px;overflow:hidden}
+.nice-table{width:100%;border-collapse:collapse;background:#fff}
+.nice-table thead tr{background:#f9fafb}
+.nice-table th,.nice-table td{padding:12px 14px;border-bottom:1px solid #eef2f7;text-align:left}
+.nice-table .muted{color:#6b7280}
+
+.table-card{border:1px solid #e5e7eb;border-radius:12px;overflow:hidden}
+.nice-table{width:100%;border-collapse:collapse;background:#fff}
+.nice-table thead tr{background:#f9fafb}
+.nice-table th,.nice-table td{padding:12px 14px;border-bottom:1px solid #eef2f7;text-align:left}
+.nice-table .muted{color:#6b7280}
+
+.input{padding:10px 12px;border:1px solid #e5e7eb;border-radius:10px;font-size:14px}
+.btn{padding:10px 14px;border:none;border-radius:10px;background:#e5e7eb;cursor:pointer;font-weight:600}
+.btn-primary{background:#84f0ff}
+
+.btn-sm{padding:6px 10px;font-size:13px;border-radius:8px}
+.btn-danger{background:#fee2e2}

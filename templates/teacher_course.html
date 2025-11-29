@@ -1,42 +1,119 @@
 {% extends "base.html" %}
 {% block content %}
-<div class="card">
-  <h2 class="title">Ученики курса #{{ course_id }}</h2>
+<div class="grid">
+  <div class="main card">
+    <div style="display:flex; align-items:flex-end; gap:12px; flex-wrap:wrap; justify-content:space-between; margin-bottom:12px;">
+      <h2 style="margin:0;">Курс #{{ course_id }} — ученики</h2>
 
-  <table class="table" id="students-table">
-    <thead>
-      <tr>
-        <th>#</th>
-        <th>ФИО</th>
-        <th>Email</th>
-        <th>Действия</th>
-      </tr>
-    </thead>
-    <tbody>
-    {% for s in students %}
-      <tr data-student-id="{{ s.id }}">
-        <td>{{ loop.index }}</td>
-        <td>{{ s.last_name }} {{ s.first_name }}</td>
-        <td>{{ s.email }}</td>
-        <td>
-          <button class="btn btn-danger btn-delete" 
-                  data-student-id="{{ s.id }}">
-            Удалить
-          </button>
-        </td>
-      </tr>
-    {% else %}
-      <tr>
-        <td colspan="4">Пока нет учеников на этом курсе.</td>
-      </tr>
-    {% endfor %}
-    </tbody>
-  </table>
+      <form method="get" action="{{ url_for('teacher_course_students', course_id=course_id) }}" style="display:flex; gap:8px; flex-wrap:wrap;">
+        <input class="input" type="text" name="q" value="{{ q }}" placeholder="Поиск по ФИО или e-mail" style="min-width:240px;">
+        <label class="input" style="display:flex; align-items:center; gap:6px;">
+          от <input type="date" name="from" value="{{ date_from }}" style="border:none; outline:none;">
+        </label>
+        <label class="input" style="display:flex; align-items:center; gap:6px;">
+          до <input type="date" name="to" value="{{ date_to }}" style="border:none; outline:none;">
+        </label>
+        <select class="input" name="sort">
+          <option value="percent_desc" {{ 'selected' if sort=='percent_desc' }}>По % верных ↓</option>
+          <option value="percent_asc"  {{ 'selected' if sort=='percent_asc'  }}>По % верных ↑</option>
+          <option value="attempts_desc" {{ 'selected' if sort=='attempts_desc' }}>По попыткам ↓</option>
+          <option value="attempts_asc"  {{ 'selected' if sort=='attempts_asc'  }}>По попыткам ↑</option>
+          <option value="avg_time_asc"  {{ 'selected' if sort=='avg_time_asc'  }}>По времени ↑</option>
+          <option value="avg_time_desc" {{ 'selected' if sort=='avg_time_desc' }}>По времени ↓</option>
+        </select>
+        <button class="btn btn-primary" type="submit">Показать</button>
+        {% if q or date_from or date_to or sort != 'percent_desc' %}
+          <a class="btn" href="{{ url_for('teacher_course_students', course_id=course_id) }}">Сброс</a>
+        {% endif %}
+      </form>
+    </div>
+
+    <div class="table-card">
+      <table class="nice-table">
+        <thead>
+          <tr>
+            <th>ФИО</th>
+            <th>E-mail</th>
+            <th>Попыток</th>
+            <th>% верных</th>
+            <th>Среднее время</th>
+            <th style="width:110px;">Действия</th>
+          </tr>
+        </thead>
+        <tbody id="studentsTbody">
+          {% if students %}
+            {% for s in students %}
+              <tr data-id="{{ s.id }}">
+                <td>{{ (s.last_name ~ ' ' ~ s.first_name).strip() or '—' }}</td>
+                <td>{{ s.email }}</td>
+                <td>{{ s.attempts }}</td>
+                <td>{{ s.percent_correct }}%</td>
+                <td>{% if s.avg_time is not none %}{{ s.avg_time }} сек{% else %}—{% endif %}</td>
+                <td>
+                  <button class="btn btn-danger btn-sm js-remove" data-id="{{ s.id }}">Удалить</button>
+                </td>
+              </tr>
+            {% endfor %}
+          {% else %}
+            <tr><td colspan="6" class="muted">Нет данных за выбранный период.</td></tr>
+          {% endif %}
+        </tbody>
+      </table>
+    </div>
+    <div id="err" class="muted" style="margin-top:8px;"></div>
+  </div>
+
+  <aside class="sidebar card">
+    <div class="side-row">
+      <div class="side-title">Студентов</div>
+      <div class="side-value" id="studentsCount">{{ students|length }}</div>
+    </div>
+    <div class="side-row">
+      <div class="side-title">Курс</div>
+      <div class="side-value">#{{ course_id }}</div>
+    </div>
+  </aside>
 </div>
 
 <script>
-  // передаём course_id в JS
-  const COURSE_ID = {{ course_id }};
+  // перерисовка при удалении остаётся прежней — используем уже сделанный fetch POST и renderRows
+  function renderRows(data) {
+    const tbody = document.getElementById('studentsTbody');
+    const count = document.getElementById('studentsCount');
+    if (!Array.isArray(data) || data.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="6" class="muted">Нет данных</td></tr>';
+      count.textContent = '0';
+      return;
+    }
+    tbody.innerHTML = data.map(s => `
+      <tr data-id="${s.id}">
+        <td>${[(s.last_name||''), (s.first_name||'')].join(' ').trim() || '—'}</td>
+        <td>${s.email}</td>
+        <td>${s.attempts ?? 0}</td>
+        <td>${s.percent_correct ?? 0}%</td>
+        <td>${(s.avg_time ?? '—') + (s.avg_time!=null ? ' сек' : '')}</td>
+        <td><button class="btn btn-danger btn-sm js-remove" data-id="${s.id}">Удалить</button></td>
+      </tr>
+    `).join('');
+    count.textContent = data.length.toString();
+  }
+
+  document.addEventListener('click', async (e) => {
+    const btn = e.target.closest('.js-remove');
+    if (!btn) return;
+    const studentId = btn.dataset.id;
+    if (!studentId) return;
+    if (!confirm('Удалить ученика с курса?')) return;
+    btn.disabled = true;
+    try {
+      const resp = await fetch('{{ url_for("api_delete_student", course_id=course_id, student_id=0) }}'.replace(/0\/delete$/, studentId + '/delete'), { method:'POST' });
+      const json = await resp.json();
+      if (json.ok) renderRows(json.students || []);
+      else document.getElementById('err').textContent = json.error || 'Ошибка удаления';
+    } catch(err){ console.error(err); }
+    finally { btn.disabled = false; }
+  });
 </script>
-<script src="{{ url_for('static', filename='js/teacher.js') }}"></script>
 {% endblock %}
+
+

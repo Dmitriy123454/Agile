@@ -1,65 +1,29 @@
 {% extends "base.html" %}
 {% block content %}
-<div class="container">
-  <div class="grid">
-    <!-- Левая часть: тренажёр -->
-    <main class="main">
-      <div id="timer" class="timer">10</div>
-      <div id="problem" class="problem">Готов?</div>
-      <input
-        id="answer"
-        class="answer-input"
-        type="number"
-        placeholder="Напиши ответ и нажми Enter"
-        autocomplete="off"
-      >
-      <div class="card" style="margin-top:24px;">
-        <div class="side-row">
-          <div class="side-title">Счёт</div>
-          <div id="points" class="side-value">0</div>
-        </div>
-        <div class="side-row">
-          <div class="side-title">Верных ответов</div>
-          <div id="correct" class="side-value">0</div>
-        </div>
-        <div class="side-row">
-          <div class="side-title">Ошибок</div>
-          <div id="wrong" class="side-value">0</div>
-        </div>
-      </div>
-    </main>
-
-    <!-- Правая часть: рекорд + график -->
-    <aside class="sidebar">
-      <div class="stat hero success">
-        <div class="mini-big">{{ record }}</div>
-        <div>Твой рекорд за всё время</div>
-      </div>
-
-      <div class="card">
-        <h3 style="margin:0 0 4px;font-size:16px;">Прогресс по последним тренировкам</h3>
-        <p class="side-title" style="margin:0 0 12px;font-size:13px;">
-          Столбцы показывают количество набранных очков в каждой из 10 последних тренировок.
-        </p>
-
-        <div style="position:relative;width:100%;height:220px;">
-          <canvas id="progressChart"></canvas>
-        </div>
-
-        {% if not user_stats.last_attempts %}
-          <p class="side-title" style="margin-top:12px;font-size:13px;">
-            Пока нет данных — пройди первую тренировку.
-          </p>
-        {% endif %}
-      </div>
-    </aside>
+<div class="grid">
+  <div class="main card">
+    <div class="problem" id="problem">5 × 3 =</div>
+    <input id="answer" class="answer-input" type="number" placeholder="Ваш ответ" autofocus>
+    <div class="timer" id="timer">10</div>
   </div>
+  <aside class="sidebar card">
+    <div class="side-row">
+      <div class="side-title">Очки</div>
+      <div class="side-value" id="points">0</div>
+    </div>
+    <div class="side-row">
+      <div class="side-title">Верно</div>
+      <div class="side-value" id="correct">0</div>
+    </div>
+    <div class="side-row">
+      <div class="side-title">Неверно</div>
+      <div class="side-value" id="wrong">0</div>
+    </div>
+    <div class="side-row">
+      <div class="side-title">Рекорд</div>
+      <div class="side-value" id="record">{{ record }}</div>
+    </div>
+  </aside>
 </div>
-
-<!-- Прокидываем данные для графика -->
-<script>
-  window.USER_STATS = {{ user_stats|tojson }};
-</script>
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-<script src="{{ url_for('static', filename='trainer.js') }}"></script>
+<script defer src="{{ url_for('static', filename='js/trainer.js') }}"></script>
 {% endblock %}

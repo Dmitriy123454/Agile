@@ -1,10 +1,156 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <title>Title</title>
-</head>
-<body>
+{% extends "base.html" %}
+{% block content %}
 
-</body>
-</html>
+<div class="grid">
+  <!-- Основная колонка -->
+  <div class="main card">
+    <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap;">
+      <h2 style="margin-top:0;">Личный кабинет</h2>
+      <div style="display:flex; gap:8px; flex-wrap:wrap;">
+        {% if (session.get('user') or {}).get('role') == 'teacher' %}
+          <a href="{{ url_for('teacher_course_students', course_id=1) }}" class="btn btn-secondary">Раздел учителя</a>
+        {% endif %}
+        <a href="{{ url_for('trainer') }}" class="btn btn-primary">Тренироваться</a>
+        <a href="{{ url_for('logout') }}" class="btn btn-danger">Выйти</a>
+      </div>
+    </div>
+
+    <p class="muted">Профиль: <strong>{{ email }}</strong></p>
+
+    <!-- Блок рекорда -->
+    <div class="hero success" style="margin: 16px 0; padding:16px; border-radius:12px;">
+      <div class="mini-big">{{ record }}</div>
+      <div>Твой рекорд за всё время</div>
+    </div>
+
+    <!-- Блок статистики -->
+    <h3 class="section-title">Статистика по упражнениям</h3>
+    <div class="table-card">
+      <table class="nice-table">
+        <thead>
+          <tr>
+            <th>Тип упражнения</th>
+            <th>Верно</th>
+            <th>Неверно</th>
+            <th>Среднее время</th>
+            <th>Очки</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% if user_stats %}
+            {% for row in user_stats %}
+              <tr>
+                <td>{{ row.get('exercise_type', '-') }}</td>
+                <td>{{ row.get('correct', 0) }}</td>
+                <td>{{ row.get('wrong', 0) }}</td>
+                <td>{{ row.get('avg_time', 0) }} сек</td>
+                <td>{{ row.get('points', 0) }}</td>
+              </tr>
+            {% endfor %}
+          {% else %}
+            <tr><td colspan="5" class="muted">Пока нет данных — пройди хотя бы одну тренировку.</td></tr>
+          {% endif %}
+        </tbody>
+      </table>
+    </div>
+
+    {# === Графики по последним 10 попыткам — ТОЛЬКО для ученика (не для teacher) === #}
+    {% if (session.get('user') or {}).get('role','student') != 'teacher' %}
+      <h3 class="section-title" style="margin-top:24px;">Графики по последним 10 попыткам</h3>
+      <div class="card" style="padding:16px;">
+        <div style="display:grid; grid-template-columns: 1fr; gap:16px;">
+          <div style="height:440px;">
+            <canvas id="pointsChart"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <!-- Передаём данные с сервера ТОЛЬКО когда рисуем графики -->
+      <script>
+        window.LAST_RESULTS = {{ (last_results or [])|tojson }};
+      </script>
+      <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+      <script>
+      (function () {
+        const raw = Array.isArray(window.LAST_RESULTS) ? window.LAST_RESULTS.slice(0, 10) : [];
+        if (!raw.length) return;
+
+        // рисуем по возрастанию времени (от старых к новым)
+        const data = raw.slice().reverse();
+
+        const labels = data.map((r, i) => {
+          try {
+            const d = new Date(r.created_at);
+            if (!isNaN(d)) {
+              return `${(d.getMonth()+1).toString().padStart(2,'0')}-${d.getDate().toString().padStart(2,'0')} ${d.getHours().toString().padStart(2,'0')}:${d.getMinutes().toString().padStart(2,'0')}`;
+            }
+          } catch (_) {}
+          return `#${i+1}`;
+        });
+
+        const points = data.map(r => Number(r.points || 0));
+        const percent = data.map(r => {
+          const c = Number(r.correct || 0), w = Number(r.wrong || 0);
+          const t = c + w;
+          return t > 0 ? Math.round((c * 10000) / t) / 100 : 0;
+        });
+
+        // === График очков (столбики) ===
+        const ctx1 = document.getElementById('pointsChart');
+        if (ctx1) {
+          new Chart(ctx1.getContext('2d'), {
+            type: 'bar',
+            data: {
+              labels,
+              datasets: [{
+                label: 'Очки',
+                data: points,
+                backgroundColor: 'rgba(99, 132, 255, 0.6)',
+                borderColor: 'rgba(99, 132, 255, 1)',
+                borderWidth: 1
+              }]
+            },
+            options: {
+              responsive: true,
+              maintainAspectRatio: false,
+              plugins: { legend: { display: false } },
+              scales: {
+                x: { grid: { display: false } },
+                y: { beginAtZero: true, grid: { color: '#eef2f7' } }
+              }
+            }
+          });
+        }
+      })();
+      </script>
+    {% endif %}
+
+  </div>
+
+  <!-- Сайдбар -->
+  <aside class="sidebar card" style="word-break: break-all; overflow-wrap: anywhere;">
+    <div class="side-row">
+      <div class="side-title">Почта</div>
+      <div class="side-value" style="font-size: 16px; line-height: 1.3; word-break: break-word;">
+        {{ email }}
+      </div>
+    </div>
+    <div class="side-row">
+      <div class="side-title">Рекорд</div>
+      <div class="side-value">{{ record }}</div>
+    </div>
+    <div class="side-row">
+      <div class="side-title">Попыток</div>
+      <div class="side-value">
+        {% if user_stats and user_stats[0].get('attempts') %}
+          {{ user_stats[0].get('attempts') }}
+        {% else %}
+          —
+        {% endif %}
+      </div>
+    </div>
+  </aside>
+</div>
+
+{% endblock %}

@@ -16,7 +16,7 @@
   <div class="nav-center"><a href="{{ url_for('trainer') }}">Тренажёры</a> <span class="icon">🎮</span></div>
   <div class="nav-right">
     {% if session.get('user') %}
-      <a href="{{ url_for('trainer') }}">Личный кабинет</a>
+      <a href="{{ url_for('profile') }}">Личный кабинет</a>
       <div class="avatar">👤</div>
     {% endif %}
   </div>
