@@ -1,6 +1,8 @@
 from flask import Flask, render_template, request, redirect, url_for, session, jsonify
 from datetime import timedelta
 import random
+import hashlib
+from database import db  
 
 app = Flask(__name__)
 app.secret_key = "dev-secret-change-me"
@@ -16,6 +18,9 @@ def login_required(fn):
         return fn(*args, **kwargs)
     return wrapper
 
+def hash_password(password):
+    return hashlib.sha256(password.encode()).hexdigest()
+
 # -------------------- Routes --------------------
 @app.route("/", methods=["GET"])
 def index():
@@ -28,14 +33,40 @@ def login():
     if request.method == "POST":
         email = request.form.get("email", "").strip()
         password = request.form.get("password", "").strip()
-        # In a real app: validate and hash password, etc.
+        
         if email and password:
-            session["user"] = {"email": email}
-            # initialize best record in session store
-            session.setdefault("record", 0)
-            return redirect(url_for("trainer"))
+            try:
+                user = db.get_user_by_email(email)
+                if not user:
+                    # Авторегистрация нового пользователя
+                    user_id = db.create_user(email, hash_password(password))
+                    user = {'id': user_id, 'email': email}
+                else:
+                    # Проверяем пароль (упрощенно)
+                    if user['password_hash'] != hash_password(password):
+                        return render_template("login.html", error="Неверный пароль"), 401
+                
+                # Устанавливаем сессию
+                session["user"] = {
+                    "id": user['id'],  # Добавляем ID из БД
+                    "email": email
+                }
+                
+                # Загружаем рекорд из БД вместо сессии
+                best_score = db.get_user_best_score(user['id'])
+                session["record"] = best_score
+                
+                return redirect(url_for("trainer"))
+                
+            except Exception as e:
+                print(f"Login error: {e}")
+                # Fallback к старой логике при ошибке БД
+                session["user"] = {"email": email}
+                session.setdefault("record", 0)
+                return redirect(url_for("trainer"))
         else:
             return render_template("login.html", error="Заполните поля"), 400
+    
     return render_template("login.html")
 
 @app.route("/logout")
@@ -46,8 +77,18 @@ def logout():
 @app.route("/trainer")
 @login_required
 def trainer():
-    # Initial stats for sidebar
-    return render_template("trainer.html", record=session.get("record", 0))
+    # Загружаем статистику из БД, если доступно
+    user_stats = {}
+    try:
+        if session.get("user") and session["user"].get("id"):
+            user_stats = db.get_user_stats(session["user"]["id"])
+    except Exception as e:
+        print(f"Stats loading error: {e}")
+        user_stats = {}
+    
+    return render_template("trainer.html", 
+                         record=session.get("record", 0),
+                         user_stats=user_stats)
 
 @app.route("/result", methods=["POST"])
 @login_required
@@ -55,14 +96,30 @@ def result():
     data = request.get_json(silent=True) or request.form
     correct = int(data.get("correct", 0))
     wrong = int(data.get("wrong", 0))
-    points = int(data.get("points", correct))  # points default to number of correct
+    points = int(data.get("points", correct))
     avg_time = float(data.get("avg_time", 0.0))
     total = correct + wrong
     percent = round((correct / total) * 100, 2) if total else 0.0
 
-    # Update record in session
-    if points > session.get("record", 0):
-        session["record"] = points
+    try:
+        # Сохраняем в БД, если есть ID пользователя
+        if session.get("user") and session["user"].get("id"):
+            db.save_exercise_result(session["user"]["id"], {
+                "correct": correct,
+                "wrong": wrong,
+                "points": points,
+                "avg_time": avg_time,
+                "exercise_type": "multiplication_basic"
+            })
+            
+            # Обновляем рекорд в БД и сессии
+            if points > session.get("record", 0):
+                session["record"] = points
+    except Exception as e:
+        print(f"Result saving error: {e}")
+        # Fallback: сохраняем только в сессии
+        if points > session.get("record", 0):
+            session["record"] = points
 
     return render_template(
         "result.html",

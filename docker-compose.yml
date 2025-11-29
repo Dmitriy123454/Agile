@@ -1,0 +1,18 @@
+version: '3.8'
+services:
+  postgres:
+    image: postgres:13
+    container_name: math_trainer_db
+    environment:
+      POSTGRES_DB: math_trainer_db
+      POSTGRES_USER: math_trainer_user
+      POSTGRES_PASSWORD: trainer_password_123
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init_db.sql:/docker-entrypoint-initdb.d/init_db.sql
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
